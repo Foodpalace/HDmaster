@@ -1,0 +1,51 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 500,
+      "title": "",
+      "hasCanvas": false,
+      "bodyTextLen": 51,
+      "bodyTextHash": "f23cb1f024501e19898ea07e6fc04d274c27c8ad421dc222add6450696ff96af",
+      "bodyTextPrefix": "{ \"error\": true, \"status\": 500, \"unhandled\": true }",
+      "horizontalOverflow": false,
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      ],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 500,
+      "title": "",
+      "hasCanvas": false,
+      "bodyTextLen": 51,
+      "bodyTextHash": "f23cb1f024501e19898ea07e6fc04d274c27c8ad421dc222add6450696ff96af",
+      "bodyTextPrefix": "{ \"error\": true, \"status\": 500, \"unhandled\": true }",
+      "horizontalOverflow": false,
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      ],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "desktop: HTTP status changed 200 -> 500",
+    "desktop: title changed (\"Roshoi Command\" -> \"\")",
+    "desktop: console/page errors appeared (1)",
+    "desktop: body text collapsed (461 -> 51 chars)",
+    "mobile: HTTP status changed 200 -> 500",
+    "mobile: title changed (\"Roshoi Command\" -> \"\")",
+    "mobile: console/page errors appeared (1)",
+    "mobile: body text collapsed (461 -> 51 chars)"
+  ]
+}

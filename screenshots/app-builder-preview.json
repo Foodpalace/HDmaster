@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Roshoi Command",
+      "hasCanvas": false,
+      "bodyTextLen": 461,
+      "bodyTextHash": "afcd0a763c1483a329ee0fadef251ac0f69433c066469e4befb769a5800d96e4",
+      "bodyTextPrefix": "Roshoi Command Enter Command WINDOW 4 · INTERNAL OPERATIONS The ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Roshoi Command",
+      "hasCanvas": false,
+      "bodyTextLen": 461,
+      "bodyTextHash": "afcd0a763c1483a329ee0fadef251ac0f69433c066469e4befb769a5800d96e4",
+      "bodyTextPrefix": "Roshoi Command Enter Command WINDOW 4 · INTERNAL OPERATIONS The ",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

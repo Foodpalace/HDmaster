@@ -1,0 +1,1 @@
+import{a as e}from"./useNavigate-DrqvhG58.js";import{t}from"./index-uesg2yC8.js";import{n}from"./pages-DCCKw5s6.js";var r=e();function i(){let{module:e,id:i}=t.useParams();return(0,r.jsx)(n,{module:e,id:i})}export{i as component};

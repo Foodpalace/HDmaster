@@ -1,0 +1,1 @@
+import{I as e}from"./preload-helper-D-ufFECY.js";function t(t){return e({from:t.from,strict:t.strict,shouldThrow:t.shouldThrow,structuralSharing:t.structuralSharing,select:e=>t.select?t.select(e.search):e.search})}export{t};

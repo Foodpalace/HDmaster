@@ -1,0 +1,1 @@
+import{t as e}from"./shell-Cvha6SQx.js";var t=e;export{t as component};
