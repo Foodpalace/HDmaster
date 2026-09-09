@@ -6,6 +6,7 @@
 export * from "./types";
 export * from "./constants";
 export * from "./money";
+export * from "./errors";
 export * from "./orders/state-machine";
 export * from "./finance/economics";
 export * from "./finance/settlement";
