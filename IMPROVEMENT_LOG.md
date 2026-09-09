@@ -5,9 +5,11 @@
 ### Done
 - Added professional README.md
 - Added ARCHITECTURE.md
+- Added CONTRIBUTING.md (quality protection rules)
 - Locked core principles and domain ownership
 - Added clean domain barrel export (`src/lib/roshoi/index.ts`)
-- Started structured improvement tracking
+- Added shared constants (`src/lib/roshoi/constants.ts`)
+- Structured improvement tracking
 
 ### Next Priority
 1. Strengthen order state machine usage across the app
