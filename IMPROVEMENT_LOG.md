@@ -6,6 +6,8 @@
 - Added professional README.md
 - Added ARCHITECTURE.md
 - Locked core principles and domain ownership
+- Added clean domain barrel export (`src/lib/roshoi/index.ts`)
+- Started structured improvement tracking
 
 ### Next Priority
 1. Strengthen order state machine usage across the app
