@@ -9,6 +9,8 @@
 - Locked core principles and domain ownership
 - Added clean domain barrel export (`src/lib/roshoi/index.ts`)
 - Added shared constants (`src/lib/roshoi/constants.ts`)
+- Added safe money utilities (`src/lib/roshoi/money.ts`)
+- Added shared domain errors (`src/lib/roshoi/errors.ts`)
 - Structured improvement tracking
 
 ### Next Priority
