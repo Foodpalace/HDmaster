@@ -1,5 +1,5 @@
 -- Revenue path hardening: real gateway payment intents/webhooks, immutable double-entry journal,
--- settlement batches, rider location pings and dispatch assignments. All money is integer paise.
+-- settlement items, rider location pings and dispatch assignments. All money is integer paise.
 
 create table if not exists payment_intents (
   id text primary key,
@@ -60,20 +60,12 @@ create table if not exists journal_lines (
 create index if not exists journal_lines_journal_idx on journal_lines (journal_id);
 create index if not exists journal_lines_party_idx on journal_lines (party_type, party_id, created_at desc);
 
-create table if not exists settlement_batches (
-  id text primary key,
-  org_id text not null references organizations(id),
-  party_type text not null check (party_type in ('RESTAURANT','RIDER')),
-  party_id text not null,
-  status text not null default 'PENDING',
-  gross_paise int not null default 0,
-  fee_paise int not null default 0,
-  net_paise int not null default 0,
-  external_reference text,
-  approved_at timestamptz,
-  paid_at timestamptz,
-  created_at timestamptz not null default now()
-);
+-- 0003 already owns settlement_batches. Add revenue-path metadata without replacing it.
+alter table settlement_batches add column if not exists gross_paise int not null default 0;
+alter table settlement_batches add column if not exists fee_paise int not null default 0;
+alter table settlement_batches add column if not exists net_paise int not null default 0;
+alter table settlement_batches add column if not exists external_reference text;
+alter table settlement_batches add column if not exists paid_at timestamptz;
 create index if not exists settlement_batches_party_idx on settlement_batches (org_id, party_type, party_id, created_at desc);
 
 create table if not exists settlement_items (
