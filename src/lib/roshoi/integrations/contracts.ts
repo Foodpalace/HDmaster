@@ -1,10 +1,8 @@
 /**
- * Window 4 integration contracts.
+ * Roshoi cross-window integration contracts.
  *
- * These TypeScript interfaces are the adapter boundary for future Window 5
- * Shared Core. Window 4 currently consumes a local simulated source through
- * the same shapes. Do not treat a connected adapter as live until the
- * corresponding window actually implements the endpoint.
+ * HDmaster is the single authoritative marketplace core. Partner, Customer and
+ * Rider windows adapt to this contract and never become a second order authority.
  */
 
 export type ContractAuth = {
@@ -42,97 +40,52 @@ export type Window3Rider = {
 
 export const WINDOW1_CONTRACT = {
   owner: "Window 1 — Customer system",
-  auth: {
-    scheme: "bearer" as const,
-    audience: "admin" as const,
-    notes: "Admin service credential issued by Window 5. Never a customer token.",
-  },
-  events: [
-    "customer.registered",
-    "order.placed",
-    "order.cancelled_by_customer",
-    "support.ticket.opened",
-    "loyalty.updated",
-  ],
+  auth: { scheme: "bearer" as const, audience: "admin" as const, notes: "Admin service credential issued by Window 5. Never a customer token." },
+  events: ["customer.registered", "order.placed", "order.cancelled_by_customer", "support.ticket.opened", "loyalty.updated"],
   endpoints: [
-    {
-      method: "GET",
-      path: "/v1/admin/customers/:id",
-      auth: "admin",
-      idempotent: true,
-    },
-    {
-      method: "GET",
-      path: "/v1/admin/orders",
-      auth: "admin",
-      idempotent: true,
-    },
+    { method: "GET", path: "/v1/admin/customers/:id", auth: "admin", idempotent: true },
+    { method: "GET", path: "/v1/admin/orders", auth: "admin", idempotent: true },
   ],
   errors: ["401", "403", "404", "409", "429"],
 } as const;
 
 export const WINDOW2_CONTRACT = {
   owner: "Window 2 — Restaurant / vendor system",
-  events: [
-    "restaurant.submitted",
-    "restaurant.availability_changed",
-    "order.accepted",
-    "order.rejected",
-    "order.preparing",
-    "order.ready",
-    "menu.updated",
-  ],
+  events: ["restaurant.submitted", "restaurant.availability_changed", "order.accepted", "order.rejected", "order.preparing", "order.ready", "menu.updated"],
   endpoints: [
     { method: "GET", path: "/v1/admin/restaurants", auth: "admin" },
     { method: "GET", path: "/v1/admin/restaurants/:id/menu", auth: "admin" },
     { method: "POST", path: "/v1/admin/restaurants/:id/status", auth: "admin" },
+    {
+      method: "POST",
+      path: "/v1/admin/orders/:id/transition",
+      auth: "admin",
+      actor: "restaurant",
+      idempotencyHeader: "Idempotency-Key",
+      contractVersion: "1",
+    },
   ],
 } as const;
 
 export const WINDOW3_CONTRACT = {
   owner: "Window 3 — Rider / delivery partner system",
-  events: [
-    "rider.online",
-    "rider.offline",
-    "offer.sent",
-    "offer.accepted",
-    "offer.expired",
-    "delivery.picked_up",
-    "delivery.completed",
-    "delivery.failed",
-  ],
+  events: ["rider.online", "rider.offline", "offer.sent", "offer.accepted", "offer.expired", "delivery.picked_up", "delivery.completed", "delivery.failed"],
   endpoints: [
     { method: "GET", path: "/v1/admin/riders", auth: "admin" },
     { method: "GET", path: "/v1/admin/dispatch/unassigned", auth: "admin" },
     { method: "POST", path: "/v1/admin/dispatch/reassign", auth: "admin" },
   ],
-  notes:
-    "Window 4 monitors dispatch; Window 5 owns the dispatch engine. Admin reassignment is a request, not a second engine.",
+  notes: "Window 5 owns dispatch. Admin reassignment is a request, not a second dispatch engine.",
 } as const;
 
 export const WINDOW5_CONTRACT = {
   owner: "Window 5 — Shared Core",
-  owns: [
-    "authentication",
-    "users",
-    "roles",
-    "orders",
-    "restaurants",
-    "riders",
-    "payments",
-    "settlements",
-    "dispatch",
-    "notifications",
-    "analytics",
-    "AI",
-    "risk",
-    "audit",
-    "configuration",
-  ],
+  owns: ["authentication", "users", "roles", "orders", "restaurants", "riders", "payments", "settlements", "dispatch", "notifications", "analytics", "AI", "risk", "audit", "configuration"],
   adminApiPrefix: "/v1/admin",
   endpoints: [
     "GET /v1/admin/dashboard",
     "GET /v1/admin/orders",
+    "POST /v1/admin/orders/:id/transition",
     "GET /v1/admin/restaurants",
     "GET /v1/admin/riders",
     "GET /v1/admin/customers",
