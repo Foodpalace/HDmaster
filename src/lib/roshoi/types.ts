@@ -70,7 +70,7 @@ export type BrandingConfig = {
 };
 
 export const DEFAULT_BRANDING: BrandingConfig = {
-  appName: "Roshoi",
+  appName: "Order King",
   logoSvg: null,
   faviconSvg: null,
   colorBg: "#0c0d0c",
@@ -80,17 +80,17 @@ export const DEFAULT_BRANDING: BrandingConfig = {
   colorAccent: "#c8ccd4",
   fontDisplay: "Newsreader",
   fontBody: "IBM Plex Sans",
-  domain: null,
-  tagline: "The kitchen, delivered.",
-  appStoreName: "Roshoi",
-  notificationSender: "Roshoi",
-  invoiceBranding: "Roshoi Foods",
-  customerBranding: "Roshoi",
-  restaurantBranding: "Roshoi Partner",
-  riderBranding: "Roshoi Rider",
-  adminBranding: "Roshoi Command",
-  legalCompanyName: "Roshoi Foods Private Limited",
-  supportEmail: "support@roshoi.example",
+  domain: "orderking.in",
+  tagline: "Order like a King.",
+  appStoreName: "Order King",
+  notificationSender: "Order King",
+  invoiceBranding: "Order King Foods",
+  customerBranding: "Order King",
+  restaurantBranding: "Order King Partner",
+  riderBranding: "Order King Rider",
+  adminBranding: "Order King Command",
+  legalCompanyName: "Order King Foods Private Limited",
+  supportEmail: "support@orderking.in",
   supportPhone: "+91 38xxx xxxxx",
 };
 
