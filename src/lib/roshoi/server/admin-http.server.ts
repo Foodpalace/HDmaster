@@ -1,3 +1,4 @@
+import { getRequest } from "@tanstack/react-start/server";
 import { requireUserId } from "@/lib/auth/verify.server";
 import { ensureWorkspace } from "@/lib/roshoi/server/workspace.server";
 import { ForbiddenError } from "@/lib/roshoi/rbac";
@@ -23,12 +24,29 @@ function splatOf(params: Record<string, string | undefined>): string {
   return (params._splat ?? params["$"] ?? Object.values(params)[0] ?? "").replace(/^\/+|\/+$/g, "");
 }
 
+/**
+ * Resolve an authenticated HDmaster operator for same-app sessions, or an
+ * explicitly configured server-to-server Roshoi integration credential.
+ * The service credential is never accepted from a client body/query parameter.
+ */
+async function resolveAdminUserId(request: Request): Promise<string> {
+  const authorization = request.headers.get("authorization")?.trim();
+  const configuredToken = process.env.ROSHOI_SERVICE_TOKEN?.trim();
+  const configuredUserId = process.env.ROSHOI_SERVICE_USER_ID?.trim();
+
+  if (configuredToken && configuredUserId && authorization === `Bearer ${configuredToken}`) {
+    return configuredUserId;
+  }
+
+  return requireUserId();
+}
+
 export async function handleAdminHttp(
   request: Request,
   params: Record<string, string | undefined>,
 ): Promise<Response> {
   try {
-    const userId = await requireUserId();
+    const userId = await resolveAdminUserId(request);
     const ws = await ensureWorkspace(userId);
     const q = await import("@/lib/roshoi/server/queries.server");
     const path = splatOf(params);
