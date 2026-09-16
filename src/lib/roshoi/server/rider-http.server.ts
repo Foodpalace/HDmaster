@@ -3,148 +3,22 @@ import { ensureWorkspace, appendAudit, nid } from "@/lib/roshoi/server/workspace
 import { ForbiddenError, requirePermission } from "@/lib/roshoi/rbac";
 import { assertCanonicalTransition, ORDER_CONTRACT_VERSION, type CanonicalOrderStatus } from "@/lib/roshoi/orders/canonical-contract";
 import { getSql } from "@/lib/db";
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-  });
-}
-
-function fail(err: unknown) {
-  if (err instanceof ForbiddenError) return json({ error: err.message, code: "FORBIDDEN" }, 403);
-  const message = err instanceof Error ? err.message : "Unexpected error";
-  if (message === "Unauthorized") return json({ error: message, code: "UNAUTHORIZED" }, 401);
-  return json({ error: message, code: "BAD_REQUEST" }, 400);
-}
-
-async function resolveServiceUserId(request: Request): Promise<string> {
-  const authorization = request.headers.get("authorization")?.trim();
-  const configuredToken = process.env.ROSHOI_SERVICE_TOKEN?.trim();
-  const configuredUserId = process.env.ROSHOI_SERVICE_USER_ID?.trim();
-  if (configuredToken && configuredUserId && authorization === `Bearer ${configuredToken}`) return configuredUserId;
-  return requireUserId();
-}
-
-export async function handleRiderOrderTransition(
-  request: Request,
-  input: {
-    orderId: string;
-    riderId: string;
-    from: CanonicalOrderStatus;
-    to: CanonicalOrderStatus;
-    reason?: string;
-    idempotencyKey: string;
-    correlationId?: string;
-  },
-): Promise<Response> {
+function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }); }
+function fail(err: unknown) { if (err instanceof ForbiddenError) return json({ error: err.message, code: "FORBIDDEN" }, 403); const message = err instanceof Error ? err.message : "Unexpected error"; if (message === "Unauthorized") return json({ error: message, code: "UNAUTHORIZED" }, 401); return json({ error: message, code: "BAD_REQUEST" }, 400); }
+async function resolveServiceUserId(request: Request): Promise<string> { const authorization = request.headers.get("authorization")?.trim(); const configuredToken = process.env.ROSHOI_SERVICE_TOKEN?.trim(); const configuredUserId = process.env.ROSHOI_SERVICE_USER_ID?.trim(); if (configuredToken && configuredUserId && authorization === `Bearer ${configuredToken}`) return configuredUserId; return requireUserId(); }
+export async function handleRiderOrderTransition(request: Request, input: { orderId: string; riderId: string; from: CanonicalOrderStatus; to: CanonicalOrderStatus; reason?: string; idempotencyKey: string; correlationId?: string }): Promise<Response> {
   try {
-    const userId = await resolveServiceUserId(request);
-    const ws = await ensureWorkspace(userId);
-    requirePermission(ws.ctx, "modify_orders", { orgId: ws.ctx.orgId, cityId: ws.ctx.cityId });
-
-    assertCanonicalTransition({
-      contractVersion: ORDER_CONTRACT_VERSION,
-      orderId: input.orderId,
-      from: input.from,
-      to: input.to,
-      actor: "rider",
-      idempotencyKey: input.idempotencyKey,
-      reason: input.reason,
-      correlationId: input.correlationId,
-    });
-
-    const sql = await getSql();
-    const existing = await sql.query<{ response_json: string }>(
-      `select response_json from idempotency_keys where key=$1 and org_id=$2 limit 1`,
-      [input.idempotencyKey, ws.ctx.orgId],
-    );
-    if (existing[0]) return json({ data: JSON.parse(existing[0].response_json) });
-
-    const rows = await sql.query<{
-      id: string;
-      status: CanonicalOrderStatus;
-      restaurant_id: string;
-      city_id: string;
-      data_mode: string;
-      rider_id: string | null;
-    }>(
-      `select id, status, restaurant_id, city_id, data_mode, rider_id
-       from orders
-       where id=$1 and org_id=$2 ${ws.ctx.cityId ? "and city_id=$3" : ""}
-       limit 1`,
-      ws.ctx.cityId ? [input.orderId, ws.ctx.orgId, ws.ctx.cityId] : [input.orderId, ws.ctx.orgId],
-    );
-    const order = rows[0];
-    if (!order) throw new ForbiddenError("Order not found");
-    if (input.to !== "RIDER_ASSIGNED" && order.rider_id && order.rider_id !== input.riderId) {
-      throw new ForbiddenError("Rider is not assigned to this order");
-    }
-
-    if (input.to === "RIDER_ASSIGNED" && input.from === "READY" && order.status === "RIDER_ASSIGNED" && order.rider_id === input.riderId) {
-      return json({ data: {
-        ok: true as const,
-        contractVersion: ORDER_CONTRACT_VERSION,
-        orderId: input.orderId,
-        from: "READY" as const,
-        state: "RIDER_ASSIGNED" as const,
-        actor: "rider" as const,
-        riderId: input.riderId,
-        duplicate: true as const,
-        dataMode: order.data_mode,
-      } });
-    }
-
+    const userId = await resolveServiceUserId(request); const ws = await ensureWorkspace(userId); requirePermission(ws.ctx, "modify_orders", { orgId: ws.ctx.orgId, cityId: ws.ctx.cityId });
+    assertCanonicalTransition({ contractVersion: ORDER_CONTRACT_VERSION, orderId: input.orderId, from: input.from, to: input.to, actor: "rider", idempotencyKey: input.idempotencyKey, reason: input.reason, correlationId: input.correlationId });
+    const sql = await getSql(); const existing = await sql.query<{ response_json: string }>(`select response_json from idempotency_keys where key=$1 and org_id=$2 limit 1`, [input.idempotencyKey, ws.ctx.orgId]); if (existing[0]) return json({ data: JSON.parse(existing[0].response_json) });
+    const rows = await sql.query<{ id: string; status: CanonicalOrderStatus; restaurant_id: string; city_id: string; data_mode: string; rider_id: string | null }>(`select id, status, restaurant_id, city_id, data_mode, rider_id from orders where id=$1 and org_id=$2 ${ws.ctx.cityId ? "and city_id=$3" : ""} limit 1`, ws.ctx.cityId ? [input.orderId, ws.ctx.orgId, ws.ctx.cityId] : [input.orderId, ws.ctx.orgId]);
+    const order = rows[0]; if (!order) throw new ForbiddenError("Order not found"); if (order.data_mode !== "LIVE") throw new Error("Rider LIVE transition endpoint accepts LIVE orders only"); if (input.to !== "RIDER_ASSIGNED" && order.rider_id && order.rider_id !== input.riderId) throw new ForbiddenError("Rider is not assigned to this order");
+    if (input.to === "RIDER_ASSIGNED" && input.from === "READY" && order.status === "RIDER_ASSIGNED" && order.rider_id === input.riderId) return json({ data: { ok: true as const, contractVersion: ORDER_CONTRACT_VERSION, orderId: input.orderId, from: "READY" as const, state: "RIDER_ASSIGNED" as const, actor: "rider" as const, riderId: input.riderId, duplicate: true as const, dataMode: order.data_mode } });
     if (order.status !== input.from) throw new Error(`Stale order state: expected ${input.from}, found ${order.status}`);
-
-    const updated = await sql.query<{ id: string }>(
-      `update orders set
-         status=$4,
-         rider_id=case when $4='RIDER_ASSIGNED' then $6 else rider_id end,
-         picked_up_at=case when $4='PICKED_UP' then now() else picked_up_at end,
-         delivered_at=case when $4='DELIVERED' then now() else delivered_at end
-       where id=$1 and org_id=$2 and status=$5
-       returning id`,
-      [input.orderId, ws.ctx.orgId, order.restaurant_id, input.to, input.from, input.riderId],
-    );
-    if (!updated[0]) throw new Error("Order transition lost a concurrency race; retry with fresh state");
-
-    await sql.query(
-      `insert into order_events (id, org_id, order_id, actor_employee_id, from_status, to_status, action, note)
-       values ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [nid("ev"), ws.ctx.orgId, input.orderId, ws.ctx.employeeId, input.from, input.to, `rider.${input.to.toLowerCase()}`, input.reason ?? null],
-    );
-    await appendAudit({
-      orgId: ws.ctx.orgId,
-      employeeId: ws.ctx.employeeId,
-      userId: ws.ctx.userId,
-      roleKey: ws.ctx.actingRoleKey,
-      action: "order.rider_transition",
-      targetType: "order",
-      targetId: input.orderId,
-      previous: { status: input.from, riderId: order.rider_id },
-      next: { status: input.to, riderId: input.riderId, actor: "rider" },
-      reason: input.reason,
-    });
-
-    const result = {
-      ok: true as const,
-      contractVersion: ORDER_CONTRACT_VERSION,
-      orderId: input.orderId,
-      from: input.from,
-      state: input.to,
-      actor: "rider" as const,
-      riderId: input.riderId,
-      duplicate: false as const,
-      dataMode: order.data_mode,
-    };
-    await sql.query(
-      `insert into idempotency_keys (key, org_id, employee_id, action, response_json)
-       values ($1,$2,$3,$4,$5) on conflict (key) do nothing`,
-      [input.idempotencyKey, ws.ctx.orgId, ws.ctx.employeeId, "order.rider_transition", JSON.stringify(result)],
-    );
-    return json({ data: result });
-  } catch (err) {
-    return fail(err);
-  }
+    const updated = await sql.query<{ id: string }>(`update orders set status=$4, rider_id=case when $4='RIDER_ASSIGNED' then $6 else rider_id end, picked_up_at=case when $4='PICKED_UP' then now() else picked_up_at end, delivered_at=case when $4='DELIVERED' then now() else delivered_at end where id=$1 and org_id=$2 and status=$5 returning id`, [input.orderId, ws.ctx.orgId, order.restaurant_id, input.to, input.from, input.riderId]); if (!updated[0]) throw new Error("Order transition lost a concurrency race; retry with fresh state");
+    await sql.query(`insert into order_events (id, org_id, order_id, actor_employee_id, from_status, to_status, action, note) values ($1,$2,$3,$4,$5,$6,$7,$8)`, [nid("ev"), ws.ctx.orgId, input.orderId, ws.ctx.employeeId, input.from, input.to, `rider.${input.to.toLowerCase()}`, input.reason ?? null]);
+    await appendAudit({ orgId: ws.ctx.orgId, employeeId: ws.ctx.employeeId, userId: ws.ctx.userId, roleKey: ws.ctx.actingRoleKey, action: "order.rider_transition", targetType: "order", targetId: input.orderId, previous: { status: input.from, riderId: order.rider_id }, next: { status: input.to, riderId: input.riderId, actor: "rider" }, reason: input.reason });
+    const result = { ok: true as const, contractVersion: ORDER_CONTRACT_VERSION, orderId: input.orderId, from: input.from, state: input.to, actor: "rider" as const, riderId: input.riderId, duplicate: false as const, dataMode: order.data_mode };
+    await sql.query(`insert into idempotency_keys (key, org_id, employee_id, action, response_json) values ($1,$2,$3,$4,$5) on conflict (key) do nothing`, [input.idempotencyKey, ws.ctx.orgId, ws.ctx.employeeId, "order.rider_transition", JSON.stringify(result)]); return json({ data: result });
+  } catch (err) { return fail(err); }
 }
