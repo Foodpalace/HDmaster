@@ -77,11 +77,25 @@ export async function handleRiderOrderTransition(
     );
     const order = rows[0];
     if (!order) throw new ForbiddenError("Order not found");
-    if (order.status !== input.from) throw new Error(`Stale order state: expected ${input.from}, found ${order.status}`);
-
     if (input.to !== "RIDER_ASSIGNED" && order.rider_id && order.rider_id !== input.riderId) {
       throw new ForbiddenError("Rider is not assigned to this order");
     }
+
+    if (input.to === "RIDER_ASSIGNED" && input.from === "READY" && order.status === "RIDER_ASSIGNED" && order.rider_id === input.riderId) {
+      return json({ data: {
+        ok: true as const,
+        contractVersion: ORDER_CONTRACT_VERSION,
+        orderId: input.orderId,
+        from: "READY" as const,
+        state: "RIDER_ASSIGNED" as const,
+        actor: "rider" as const,
+        riderId: input.riderId,
+        duplicate: true as const,
+        dataMode: order.data_mode,
+      } });
+    }
+
+    if (order.status !== input.from) throw new Error(`Stale order state: expected ${input.from}, found ${order.status}`);
 
     const updated = await sql.query<{ id: string }>(
       `update orders set
