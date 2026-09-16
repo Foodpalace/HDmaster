@@ -1,7 +1,7 @@
-# Roshoi Core – Architecture
+# Order King Core – Architecture
 
 ## Purpose
-HDmaster is the single Integration Core + Admin Command Center for the entire Roshoi platform.
+HDmaster is the single Integration Core + Admin Command Center for the entire Order King platform.
 
 ## Principles
 
@@ -13,6 +13,7 @@ HDmaster is the single Integration Core + Admin Command Center for the entire Ro
 6. Strong state machines for orders, restaurants, riders
 7. Organization-scoped multi-tenancy
 8. Audit logs are never updated or deleted
+9. SIMULATED/SANDBOX data is never treated as LIVE
 
 ## Order Status Flow (Core)
 
@@ -21,13 +22,13 @@ PENDING → CONFIRMED → PREPARING → READY → RIDER_ASSIGNED → PICKED_UP �
 Terminal states include: CANCELLED, PAYMENT_FAILED, RESTAURANT_REJECTED, DELIVERY_FAILED, REFUNDED, etc.
 
 ## Data Modes
-- SIMULATED (default for development)
+- SIMULATED (development/demo)
 - SANDBOX
 - LIVE
 
 ## Key Folders
 
-- `src/lib/roshoi/` → Domain logic (orders, finance, rbac, etc.)
+- `src/lib/roshoi/` → Domain logic (internal compatibility path)
 - `migrations/` → Database schema
 - `src/routes/` → App routes + API
 
@@ -36,5 +37,7 @@ Terminal states include: CANCELLED, PAYMENT_FAILED, RESTAURANT_REJECTED, DELIVER
 - Customers
 - Partners (Restaurants)
 - Riders
+
+Partner, Customer and Rider windows adapt to the canonical HDmaster order contract; they must not create a second authoritative LIVE order state.
 
 This core must remain stable and correct. All other apps depend on it.
