@@ -1,8 +1,8 @@
-# Roshoi Core
+# Order King Core
 
 **Integration Core + Admin / CEO Command Center**
 
-This is the central brain of the Roshoi multi-vendor food delivery platform.
+This is the central brain of the Order King multi-vendor food delivery platform.
 
 ## Role
 
@@ -31,7 +31,7 @@ This is the central brain of the Roshoi multi-vendor food delivery platform.
 
 ## Status
 
-Active development. Core schema and domain logic are established.  
+Active development. Core schema and domain logic are established.
 Focus: stability, correctness, and clean integration with the three frontend apps.
 
 ## Related Repos
