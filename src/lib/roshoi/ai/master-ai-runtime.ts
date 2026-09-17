@@ -29,7 +29,9 @@ const MAX_TOOL_OUTPUT = 12_000;
 const IMPLEMENTED_READS = new Set([
   "get_order", "search_orders", "list_recent_orders", "list_delayed_orders",
   "get_order_timeline", "get_order_events", "explain_order",
-  "get_restaurant", "get_rider", "get_customer", "get_support_tickets",
+  "get_restaurant", "restaurant_health", "restaurant_orders", "restaurant_menu_status", "restaurant_hours", "restaurant_performance",
+  "get_rider", "rider_health", "rider_active_orders", "rider_performance",
+  "get_customer", "get_support_tickets",
   "get_risk_signals", "get_delivery_metrics", "get_dashboard", "get_ceo_brief",
 ]);
 
@@ -108,7 +110,23 @@ async function executeRead(ws: Workspace, name: string, args: Record<string, unk
       };
     }
     case "get_restaurant": return id ? q.getRestaurant(ws.ctx, id) : q.listRestaurants(ws.ctx, search);
+    case "restaurant_health":
+    case "restaurant_menu_status":
+    case "restaurant_hours":
+    case "restaurant_performance":
+      if (!id) throw new Error(`${name} requires restaurant id`);
+      return q.getRestaurant(ws.ctx, id);
+    case "restaurant_orders":
+      if (!id) throw new Error("restaurant_orders requires restaurant id");
+      return q.listOrders(ws.ctx, { restaurantId: id, limit });
     case "get_rider": return id ? q.getRider(ws.ctx, id) : q.listRiders(ws.ctx, search);
+    case "rider_health":
+    case "rider_performance":
+      if (!id) throw new Error(`${name} requires rider id`);
+      return q.getRider(ws.ctx, id);
+    case "rider_active_orders":
+      if (!id) throw new Error("rider_active_orders requires rider id");
+      return q.listOrders(ws.ctx, { riderId: id, limit });
     case "get_customer": return id ? q.getCustomer(ws.ctx, id) : q.listCustomers(ws.ctx, search);
     case "get_support_tickets": return q.listTickets(ws.ctx);
     case "get_risk_signals": return q.listRisk(ws.ctx);
