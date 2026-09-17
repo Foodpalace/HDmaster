@@ -1,6 +1,7 @@
 import { MASTER_AI_OPERATING_CONTRACT, requiresHumanApproval } from "./master-ai-operating-contract";
 import { MASTER_AI_TOOL_REGISTRY, type MasterAiToolSpec } from "./tool-registry";
 import { requirePermission } from "@/lib/roshoi/rbac";
+import { appendAudit } from "@/lib/roshoi/server/workspace.server";
 import { getSql } from "@/lib/db";
 
 type Workspace = {
@@ -23,6 +24,9 @@ export type MasterAiRuntimeResult =
 const MODEL = "grok-4.6";
 const MAX_ROUNDS = 8;
 const MAX_TOOL_OUTPUT = 12_000;
+const MAX_QUESTION_LENGTH = 12_000;
+const MAX_MESSAGE_LENGTH = 12_000;
+const MAX_CONVERSATION_MESSAGES = 20;
 
 const IMPLEMENTED_READS = new Set([
   "get_order", "search_orders", "list_recent_orders", "list_delayed_orders",
@@ -69,6 +73,30 @@ function normalizeToolEvidence(value: unknown, dataMode: string): unknown {
     return out;
   }
   return value;
+}
+
+function normalizeConversation(input: Input) {
+  const question = input.question.trim();
+  if (!question) throw new Error("Master AI question is required");
+  if (question.length > MAX_QUESTION_LENGTH) throw new Error("Master AI question is too long");
+  return (input.conversation ?? [])
+    .filter((message) => message.role === "user" || message.role === "assistant")
+    .slice(-MAX_CONVERSATION_MESSAGES)
+    .map((message) => ({ role: message.role, content: message.content.slice(0, MAX_MESSAGE_LENGTH) }));
+}
+
+async function auditToolCall(ws: Workspace, input: { name: string; status: ToolCallResult["status"]; risk?: string; callId?: string }) {
+  await appendAudit({
+    orgId: ws.ctx.orgId,
+    employeeId: ws.ctx.employeeId,
+    userId: ws.ctx.userId,
+    roleKey: ws.ctx.actingRoleKey,
+    action: `master_ai.tool.${input.status}`,
+    targetType: "ai_tool",
+    targetId: input.name,
+    next: { tool: input.name, status: input.status, risk: input.risk ?? null, callId: input.callId ?? null, dataMode: ws.dataMode },
+    reason: "Master AI governed tool execution",
+  });
 }
 
 function systemPrompt(ws: Workspace, mode: Input["mode"]) {
@@ -153,10 +181,17 @@ export async function runMasterAi(ws: Workspace, input: Input): Promise<MasterAi
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) return { ok: false, error: "XAI_API_KEY is not configured for Master AI", status: 503 };
 
+  let conversation: Array<{ role: "user" | "assistant"; content: string }>;
+  try {
+    conversation = normalizeConversation(input);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Invalid Master AI input", status: 400 };
+  }
+
   const messages: Array<Record<string, unknown>> = [
     { role: "system", content: systemPrompt(ws, input.mode) },
-    ...(input.conversation ?? []).slice(-20),
-    { role: "user", content: input.question },
+    ...conversation,
+    { role: "user", content: input.question.trim() },
   ];
   const toolCalls: ToolCallResult[] = [];
   const evidence = new Set<string>(["RESULT"]);
@@ -187,30 +222,40 @@ export async function runMasterAi(ws: Workspace, input: Input): Promise<MasterAi
       try { args = JSON.parse(typeof call.arguments === "string" ? call.arguments : "{}") as Record<string, unknown>; } catch { /* invalid arguments are handled as an empty argument set */ }
       const spec = MASTER_AI_TOOL_REGISTRY[name];
       if (!spec) {
-        toolCalls.push({ name, status: "unavailable" });
+        const result = { name, status: "unavailable" as const };
+        toolCalls.push(result);
+        await auditToolCall(ws, { ...result, callId });
         messages.push({ type: "function_call_output", call_id: callId, output: JSON.stringify({ error: "Unknown tool" }) });
         continue;
       }
       if (requiresHumanApproval(spec.risk, spec.confirmationRequired) || spec.risk !== "READ") {
-        toolCalls.push({ name, status: "approval_required" });
+        const result = { name, status: "approval_required" as const };
+        toolCalls.push(result);
         evidence.add("ESCALATION");
+        await auditToolCall(ws, { ...result, risk: spec.risk, callId });
         messages.push({ type: "function_call_output", call_id: callId, output: JSON.stringify({ status: "approval_required", tool: name, risk: spec.risk }) });
         continue;
       }
       if (!IMPLEMENTED_READS.has(name)) {
-        toolCalls.push({ name, status: "unavailable" });
+        const result = { name, status: "unavailable" as const };
+        toolCalls.push(result);
         evidence.add("UNCERTAINTY");
+        await auditToolCall(ws, { ...result, risk: spec.risk, callId });
         messages.push({ type: "function_call_output", call_id: callId, output: JSON.stringify({ status: "unavailable", reason: "registered but handler not connected yet" }) });
         continue;
       }
       try {
         const result = normalizeToolEvidence(await executeRead(ws, name, args), ws.dataMode);
-        toolCalls.push({ name, status: "executed" });
+        const toolResult = { name, status: "executed" as const };
+        toolCalls.push(toolResult);
         evidence.add("SYSTEM_DATA");
+        await auditToolCall(ws, { ...toolResult, risk: spec.risk, callId });
         messages.push({ type: "function_call_output", call_id: callId, output: JSON.stringify(result).slice(0, MAX_TOOL_OUTPUT) });
       } catch (error) {
-        toolCalls.push({ name, status: "failed" });
+        const toolResult = { name, status: "failed" as const };
+        toolCalls.push(toolResult);
         evidence.add("UNCERTAINTY");
+        await auditToolCall(ws, { ...toolResult, risk: spec.risk, callId });
         messages.push({ type: "function_call_output", call_id: callId, output: JSON.stringify({ status: "failed", error: error instanceof Error ? error.message : "Tool execution failed" }) });
       }
     }
