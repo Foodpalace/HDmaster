@@ -60,7 +60,7 @@ export async function handleMasterAiHttp(request: Request) {
       action: "ai.master.request",
       targetType: "master_ai",
       targetId: mode,
-      metadata: JSON.stringify({ questionLength: question.length, toolCalls: result.ok ? result.toolCalls : [], status: result.ok ? "completed" : "failed" }),
+      reason: JSON.stringify({ questionLength: question.length, toolCalls: result.ok ? result.toolCalls : [], status: result.ok ? "completed" : "failed" }),
     });
     return json(result, result.ok ? 200 : result.status);
   } catch (err) {
