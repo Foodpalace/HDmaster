@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "node:test";
 import { verifyCheckoutSignature, verifyWebhookSignature } from "./razorpay.server";
 
 describe("Razorpay signature verification", () => {
