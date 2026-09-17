@@ -19,6 +19,7 @@ import { Route as V1AdminResourceIdRouteImport } from './routes/v1/admin/$resour
 import { Route as V1AdminDispatchReassignRouteImport } from './routes/v1/admin/dispatch/reassign'
 import { Route as V1AdminCustomerOrderRouteImport } from './routes/v1/admin/customer-order'
 import { Route as V1AdminCustomerOrdersRouteImport } from './routes/v1/admin/customer-orders'
+import { Route as V1AdminMasterAiRouteImport } from './routes/v1/admin/master-ai'
 import { Route as V1AdminOrdersIdRiderTransitionRouteImport } from './routes/v1/admin/orders/$id/rider-transition'
 import { Route as V1AdminRiderOffersRouteImport } from './routes/v1/admin/rider-offers'
 import { Route as V1PaymentsSplatRouteImport } from './routes/v1/payments/$'
@@ -35,6 +36,7 @@ const V1AdminResourceIdRoute = V1AdminResourceIdRouteImport.update({ id: '/v1/ad
 const V1AdminDispatchReassignRoute = V1AdminDispatchReassignRouteImport.update({ id: '/v1/admin/dispatch/reassign', path: '/v1/admin/dispatch/reassign', getParentRoute: () => rootRouteImport } as any)
 const V1AdminCustomerOrderRoute = V1AdminCustomerOrderRouteImport.update({ id: '/v1/admin/customer-order', path: '/v1/admin/customer-order', getParentRoute: () => rootRouteImport } as any)
 const V1AdminCustomerOrdersRoute = V1AdminCustomerOrdersRouteImport.update({ id: '/v1/admin/customer-orders', path: '/v1/admin/customer-orders', getParentRoute: () => rootRouteImport } as any)
+const V1AdminMasterAiRoute = V1AdminMasterAiRouteImport.update({ id: '/v1/admin/master-ai', path: '/v1/admin/master-ai', getParentRoute: () => rootRouteImport } as any)
 const V1AdminOrdersIdRiderTransitionRoute = V1AdminOrdersIdRiderTransitionRouteImport.update({ id: '/v1/admin/orders/$id/rider-transition', path: '/v1/admin/orders/$id/rider-transition', getParentRoute: () => rootRouteImport } as any)
 const V1AdminRiderOffersRoute = V1AdminRiderOffersRouteImport.update({ id: '/v1/admin/rider-offers', path: '/v1/admin/rider-offers', getParentRoute: () => rootRouteImport } as any)
 const V1PaymentsSplatRoute = V1PaymentsSplatRouteImport.update({ id: '/v1/payments/$', path: '/v1/payments/$', getParentRoute: () => rootRouteImport } as any)
@@ -52,6 +54,7 @@ export interface FileRoutesByFullPath {
   '/v1/admin/dispatch/reassign': typeof V1AdminDispatchReassignRoute
   '/v1/admin/customer-order': typeof V1AdminCustomerOrderRoute
   '/v1/admin/customer-orders': typeof V1AdminCustomerOrdersRoute
+  '/v1/admin/master-ai': typeof V1AdminMasterAiRoute
   '/v1/admin/orders/$id/rider-transition': typeof V1AdminOrdersIdRiderTransitionRoute
   '/v1/admin/rider-offers': typeof V1AdminRiderOffersRoute
   '/v1/payments/$': typeof V1PaymentsSplatRoute
@@ -71,6 +74,7 @@ export interface FileRoutesById {
   '/v1/admin/dispatch/reassign': typeof V1AdminDispatchReassignRoute
   '/v1/admin/customer-order': typeof V1AdminCustomerOrderRoute
   '/v1/admin/customer-orders': typeof V1AdminCustomerOrdersRoute
+  '/v1/admin/master-ai': typeof V1AdminMasterAiRoute
   '/v1/admin/orders/$id/rider-transition': typeof V1AdminOrdersIdRiderTransitionRoute
   '/v1/admin/rider-offers': typeof V1AdminRiderOffersRoute
   '/v1/payments/$': typeof V1PaymentsSplatRoute
@@ -79,9 +83,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: keyof FileRoutesByFullPath
   fileRoutesByTo: FileRoutesByTo
+  fileRoutesById: FileRoutesById
   to: keyof FileRoutesByFullPath
   id: keyof FileRoutesById
-  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
@@ -93,6 +97,7 @@ export interface RootRouteChildren {
   V1AdminDispatchReassignRoute: typeof V1AdminDispatchReassignRoute
   V1AdminCustomerOrderRoute: typeof V1AdminCustomerOrderRoute
   V1AdminCustomerOrdersRoute: typeof V1AdminCustomerOrdersRoute
+  V1AdminMasterAiRoute: typeof V1AdminMasterAiRoute
   V1AdminOrdersIdRiderTransitionRoute: typeof V1AdminOrdersIdRiderTransitionRoute
   V1AdminRiderOffersRoute: typeof V1AdminRiderOffersRoute
   V1PaymentsSplatRoute: typeof V1PaymentsSplatRoute
@@ -119,6 +124,7 @@ const rootRouteChildren: RootRouteChildren = {
   V1AdminDispatchReassignRoute,
   V1AdminCustomerOrderRoute,
   V1AdminCustomerOrdersRoute,
+  V1AdminMasterAiRoute,
   V1AdminOrdersIdRiderTransitionRoute,
   V1AdminRiderOffersRoute,
   V1PaymentsSplatRoute,
