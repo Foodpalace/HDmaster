@@ -64,22 +64,49 @@ export async function handleRiderOffersHttp(request: Request): Promise<Response>
     }
 
     const accepted = await sql<{ order_id: string }>`
-      with accepted as (
-        update dispatch_assignments set status='ACCEPTED', responded_at=now()
-        where id=${body.offerId} and org_id=${ws.ctx.orgId} and rider_id=${riderId} and status='OFFERED' and offered_at > now()-interval '30 seconds'
-        returning order_id
+      with candidate as (
+        select da.id as offer_id, da.order_id, da.rider_id
+        from dispatch_assignments da
+        join orders o on o.id=da.order_id
+        join riders r on r.id=da.rider_id
+        where da.id=${body.offerId}
+          and da.org_id=${ws.ctx.orgId}
+          and da.rider_id=${riderId}
+          and da.status='OFFERED'
+          and da.offered_at > now()-interval '30 seconds'
+          and o.org_id=${ws.ctx.orgId}
+          and o.data_mode='PRODUCTION'
+          and o.status='READY'
+          and o.rider_id is null
+          and r.org_id=${ws.ctx.orgId}
+          and r.data_mode='PRODUCTION'
+          and r.status in ('ACTIVE','ONLINE','BUSY')
+          and r.online=1
+          and r.active_order_id is null
+        for update of da, o, r
       ),
       order_claim as (
-        update orders o set rider_id=${riderId}, status='RIDER_ASSIGNED'
-        from accepted a join riders r on r.id=${riderId} and r.org_id=${ws.ctx.orgId} and r.data_mode='PRODUCTION' and r.online=1 and r.active_order_id is null
-        where o.id=a.order_id and o.org_id=${ws.ctx.orgId} and o.data_mode='PRODUCTION' and o.status='READY'
-        returning o.id
+        update orders o set rider_id=c.rider_id, status='RIDER_ASSIGNED'
+        from candidate c
+        where o.id=c.order_id and o.org_id=${ws.ctx.orgId} and o.data_mode='PRODUCTION' and o.status='READY' and o.rider_id is null
+        returning o.id, c.rider_id, c.offer_id
+      ),
+      rider_claim as (
+        update riders r set active_order_id=oc.id
+        from order_claim oc
+        where r.id=oc.rider_id and r.org_id=${ws.ctx.orgId} and r.data_mode='PRODUCTION' and r.online=1 and r.active_order_id is null
+        returning r.id, oc.id as order_id, oc.offer_id
+      ),
+      assignment_claim as (
+        update dispatch_assignments da set status='ACCEPTED', responded_at=now()
+        from rider_claim rc
+        where da.id=rc.offer_id and da.org_id=${ws.ctx.orgId} and da.rider_id=${riderId} and da.status='OFFERED'
+        returning da.order_id
       )
-      select order_id from accepted where exists (select 1 from order_claim)`;
+      select order_id from assignment_claim`;
     if (!accepted[0]) return json({ error: "Offer is no longer available or rider/order was already claimed", code: "OFFER_GONE" }, 409);
 
     const orderId = accepted[0].order_id;
-    await sql`update riders set active_order_id=${orderId} where id=${riderId} and org_id=${ws.ctx.orgId} and data_mode='PRODUCTION' and online=1 and active_order_id is null`;
     await sql`insert into order_events (id,org_id,order_id,actor_employee_id,from_status,to_status,action,note) values (${nid("ev")},${ws.ctx.orgId},${orderId},${ws.ctx.employeeId},'READY','RIDER_ASSIGNED','rider.offer_accepted',${body.reason ?? null})`;
     const result = { offerId: body.offerId, orderId, riderId, decision: "ACCEPT" as const, status: "ACCEPTED" };
     await sql`insert into idempotency_keys (key,org_id,employee_id,action,response_json) values (${idempotencyKey},${ws.ctx.orgId},${ws.ctx.employeeId},'rider.offer_accept',${JSON.stringify(result)}) on conflict (key) do nothing`;
