@@ -1,5 +1,7 @@
 import { MASTER_AI_OPERATING_CONTRACT, requiresHumanApproval } from "./master-ai-operating-contract";
 import { MASTER_AI_TOOL_REGISTRY, type MasterAiToolSpec } from "./tool-registry";
+import { requirePermission } from "@/lib/roshoi/rbac";
+import { getSql } from "@/lib/db";
 
 type Workspace = {
   ctx: { userId: string; orgId: string; employeeId: string; actingRoleKey: string };
@@ -26,6 +28,7 @@ const MAX_TOOL_OUTPUT = 12_000;
 // The broader registry remains the policy contract and is expanded incrementally.
 const IMPLEMENTED_READS = new Set([
   "get_order", "search_orders", "list_recent_orders", "list_delayed_orders",
+  "get_order_timeline", "get_order_events", "explain_order",
   "get_restaurant", "get_rider", "get_customer", "get_support_tickets",
   "get_risk_signals", "get_delivery_metrics", "get_dashboard", "get_ceo_brief",
 ]);
@@ -77,6 +80,33 @@ async function executeRead(ws: Workspace, name: string, args: Record<string, unk
     case "list_recent_orders": return q.listOrders(ws.ctx, { limit });
     case "list_delayed_orders":
     case "get_delivery_metrics": return q.listOrders(ws.ctx, { delayed: true, limit });
+    case "get_order_timeline": {
+      if (!id) throw new Error("get_order_timeline requires orderId");
+      const order = await q.getOrder(ws.ctx, id);
+      return { orderId: id, timeline: Array.isArray((order as { events?: unknown }).events) ? (order as { events: unknown[] }).events : [] };
+    }
+    case "get_order_events": {
+      if (!id) throw new Error("get_order_events requires orderId");
+      requirePermission(ws.ctx, "view_audit_logs");
+      const rows = await (await getSql()).query<Record<string, unknown>>(
+        `select id, actor_employee_id, from_status, to_status, action, note, created_at from order_events where org_id=$1 and order_id=$2 order by created_at asc`,
+        [ws.ctx.orgId, id],
+      );
+      return { orderId: id, events: rows };
+    }
+    case "explain_order": {
+      if (!id) throw new Error("explain_order requires orderId");
+      const order = await q.getOrder(ws.ctx, id) as Record<string, unknown>;
+      return {
+        orderId: id,
+        status: order.status ?? null,
+        paymentStatus: order.payment_status ?? null,
+        riderId: order.rider_id ?? null,
+        restaurantId: order.restaurant_id ?? null,
+        events: Array.isArray(order.events) ? order.events : [],
+        explanation: "Explanation is derived only from the authorized canonical order record and its recorded events.",
+      };
+    }
     case "get_restaurant": return id ? q.getRestaurant(ws.ctx, id) : q.listRestaurants(ws.ctx, search);
     case "get_rider": return id ? q.getRider(ws.ctx, id) : q.listRiders(ws.ctx, search);
     case "get_customer": return id ? q.getCustomer(ws.ctx, id) : q.listCustomers(ws.ctx, search);
