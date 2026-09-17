@@ -32,7 +32,7 @@ export async function handleMasterAiHttp(request: Request) {
       reasoningEffort?: unknown;
     };
     const question = typeof input.question === "string" ? input.question.trim() : "";
-    if (!question || question.length > 20_000) return json({ error: "question must be 1–20000 characters" }, 400);
+    if (!question || question.length > 12_000) return json({ error: "question must be 1–12000 characters" }, 400);
     const mode = input.mode === "ceo" ? "ceo" : "ops";
     if (mode === "ceo") requirePermission(ws.ctx, "access_CEO_dashboard");
 
@@ -43,7 +43,7 @@ export async function handleMasterAiHttp(request: Request) {
             ((m as { role?: unknown }).role === "user" || (m as { role?: unknown }).role === "assistant") &&
             typeof (m as { content?: unknown }).content === "string")
           .slice(-20)
-          .map((m) => ({ role: m.role, content: m.content.slice(0, 20_000) }))
+          .map((m) => ({ role: m.role, content: m.content.slice(0, 12_000) }))
       : [];
 
     const requestedEffort = input.reasoningEffort;
