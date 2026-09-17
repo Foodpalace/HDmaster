@@ -12,13 +12,18 @@ type CustomerOrderInput = {
   lines: { itemId: string; name: string; qty: number; unitPaise: number }[];
 };
 
+async function authorizeService(request: Request) {
+  const userId = serviceUserId(request);
+  const ws = await ensureWorkspace(userId);
+  return { userId, ws };
+}
+
 export async function handleCustomerOrderHttp(request: Request): Promise<Response> {
   try {
     if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
     const idempotencyKey = request.headers.get("Idempotency-Key")?.trim();
     if (!idempotencyKey || idempotencyKey.length < 8) return json({ error: "Idempotency-Key is required", code: "IDEMPOTENCY_REQUIRED" }, 400);
-    const userId = serviceUserId(request);
-    const ws = await ensureWorkspace(userId);
+    const { ws } = await authorizeService(request);
     requirePermission(ws.ctx, "modify_orders", { orgId: ws.ctx.orgId, cityId: ws.ctx.cityId });
     const input = (await request.json()) as CustomerOrderInput;
     if (!input.customerRef || !input.restaurantId || !input.cityId || !input.zoneId || !input.lines?.length) return json({ error: "customerRef, restaurantId, cityId, zoneId and lines are required", code: "INVALID_REQUEST" }, 400);
@@ -27,24 +32,16 @@ export async function handleCustomerOrderHttp(request: Request): Promise<Respons
     const sql = await getSql();
     const duplicate = await sql<{ response_json: string }>`select response_json from idempotency_keys where key=${idempotencyKey} and org_id=${ws.ctx.orgId} limit 1`;
     if (duplicate[0]) return json({ data: JSON.parse(duplicate[0].response_json) });
-
     const restaurant = await sql<{ id: string; city_id: string; zone_id: string; status: string }>`select id, city_id, zone_id, status from restaurants where id=${input.restaurantId} and org_id=${ws.ctx.orgId} limit 1`;
     if (!restaurant[0]) return json({ error: "Restaurant not found", code: "RESTAURANT_NOT_FOUND" }, 404);
     if (restaurant[0].city_id !== input.cityId || restaurant[0].zone_id !== input.zoneId) return json({ error: "Restaurant serviceability mismatch", code: "SERVICEABILITY_MISMATCH" }, 409);
     if (!["ACTIVE", "OPEN"].includes(restaurant[0].status)) return json({ error: "Restaurant is not accepting orders", code: "RESTAURANT_UNAVAILABLE" }, 409);
-
     const menu = await sql<{ id: string; name: string; price_paise: number; available: number }[]>`select id,name,price_paise,available from menu_items where org_id=${ws.ctx.orgId} and restaurant_id=${input.restaurantId}`;
     const menuById = new Map(menu.map((item) => [item.id, item]));
-    for (const line of input.lines) {
-      const item = menuById.get(line.itemId);
-      if (!item || !item.available) return json({ error: `Menu item unavailable: ${line.itemId}`, code: "MENU_ITEM_UNAVAILABLE" }, 409);
-      if (item.price_paise !== line.unitPaise) return json({ error: `Menu price changed for ${item.name}; refresh the menu and retry`, code: "MENU_PRICE_CHANGED" }, 409);
-    }
-
+    for (const line of input.lines) { const item = menuById.get(line.itemId); if (!item || !item.available) return json({ error: `Menu item unavailable: ${line.itemId}`, code: "MENU_ITEM_UNAVAILABLE" }, 409); if (item.price_paise !== line.unitPaise) return json({ error: `Menu price changed for ${item.name}; refresh the menu and retry`, code: "MENU_PRICE_CHANGED" }, 409); }
     const customerRows = await sql<{ id: string }>`select id from customers where org_id=${ws.ctx.orgId} and display_ref=${input.customerRef} limit 1`;
     let customerId = customerRows[0]?.id;
     if (!customerId) { customerId = nid("cus"); await sql`insert into customers (id,org_id,city_id,display_ref,phone_masked,status,data_mode) values (${customerId},${ws.ctx.orgId},${input.cityId},${input.customerRef},'MASKED','ACTIVE',${ws.dataMode})`; }
-
     const orderId = nid("ord");
     const paymentStatus = input.paymentMethod === "COD" ? "PENDING" : "AUTHORIZED_SANDBOX";
     await sql`insert into orders (id,org_id,city_id,zone_id,restaurant_id,customer_id,status,payment_status,payment_method,food_paise,restaurant_discount_paise,platform_discount_paise,delivery_fee_paise,service_fee_paise,tax_paise,total_paise,commission_paise,promised_at,placed_at,data_mode,delivery_address_json,delivery_lat,delivery_lng,delivery_otp) values (${orderId},${ws.ctx.orgId},${input.cityId},${input.zoneId},${input.restaurantId},${customerId},'PENDING',${paymentStatus},${input.paymentMethod},${input.foodPaise},${input.restaurantDiscountPaise},${input.platformDiscountPaise},${input.deliveryFeePaise},${input.serviceFeePaise},${input.taxPaise},${input.totalPaise},${input.commissionPaise},now()+interval '45 minutes',now(),${ws.dataMode},${JSON.stringify(input.address)},${input.address.lat ?? null},${input.address.lng ?? null},${Math.floor(1000 + Math.random() * 9000).toString()})`;
@@ -54,8 +51,31 @@ export async function handleCustomerOrderHttp(request: Request): Promise<Respons
     const result = { orderId, status: "PENDING", paymentStatus, totalPaise: input.totalPaise, dataMode: ws.dataMode };
     await sql`insert into idempotency_keys (key,org_id,employee_id,action,response_json) values (${idempotencyKey},${ws.ctx.orgId},${ws.ctx.employeeId},'order.customer_create',${JSON.stringify(result)}) on conflict (key) do nothing`;
     return json({ data: result });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return json({ error: message, code: message === "Unauthorized" ? "UNAUTHORIZED" : "BAD_REQUEST" }, message === "Unauthorized" ? 401 : 400);
-  }
+  } catch (err) { const message = err instanceof Error ? err.message : "Unexpected error"; return json({ error: message, code: message === "Unauthorized" ? "UNAUTHORIZED" : "BAD_REQUEST" }, message === "Unauthorized" ? 401 : 400); }
+}
+
+export async function handleCustomerOrderCancelHttp(request: Request, orderId: string): Promise<Response> {
+  try {
+    if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+    const idempotencyKey = request.headers.get("Idempotency-Key")?.trim();
+    if (!idempotencyKey || idempotencyKey.length < 8) return json({ error: "Idempotency-Key is required", code: "IDEMPOTENCY_REQUIRED" }, 400);
+    const { ws } = await authorizeService(request);
+    requirePermission(ws.ctx, "cancel_orders", { orgId: ws.ctx.orgId, cityId: ws.ctx.cityId });
+    const body = (await request.json().catch(() => ({}))) as { customerRef?: string; reason?: string };
+    if (!body.customerRef) return json({ error: "customerRef is required", code: "INVALID_REQUEST" }, 400);
+    const sql = await getSql();
+    const duplicate = await sql<{ response_json: string }>`select response_json from idempotency_keys where key=${idempotencyKey} and org_id=${ws.ctx.orgId} limit 1`;
+    if (duplicate[0]) return json({ data: JSON.parse(duplicate[0].response_json) });
+    const rows = await sql<{ id: string; status: string; customer_ref: string }>`select o.id,o.status,c.display_ref as customer_ref from orders o join customers c on c.id=o.customer_id where o.id=${orderId} and o.org_id=${ws.ctx.orgId} and o.city_id=${ws.ctx.cityId} limit 1`;
+    const order = rows[0];
+    if (!order) return json({ error: "Order not found", code: "ORDER_NOT_FOUND" }, 404);
+    if (order.customer_ref !== body.customerRef) return json({ error: "Order does not belong to customer", code: "FORBIDDEN" }, 403);
+    if (!["PENDING", "CONFIRMED"].includes(order.status)) return json({ error: "Order can no longer be cancelled", code: "CANCELLATION_NOT_ALLOWED", status: order.status }, 409);
+    await sql`update orders set status='CANCELLED', updated_at=now() where id=${order.id} and org_id=${ws.ctx.orgId} and status=${order.status}`;
+    await sql`insert into order_events (id,org_id,order_id,actor_employee_id,from_status,to_status,action,note) values (${nid("ev")},${ws.ctx.orgId},${order.id},${ws.ctx.employeeId},${order.status},'CANCELLED','customer.order_cancelled',${JSON.stringify({ customerRef: body.customerRef, reason: body.reason ?? null })})`;
+    await appendAudit({ orgId: ws.ctx.orgId, employeeId: ws.ctx.employeeId, userId: ws.ctx.userId, roleKey: ws.ctx.actingRoleKey, action: "order.customer_cancelled", targetType: "order", targetId: order.id, next: { status: "CANCELLED" }, reason: body.reason ?? "Customer cancellation" });
+    const result = { orderId: order.id, status: "CANCELLED", authoritative: "HDmaster" as const };
+    await sql`insert into idempotency_keys (key,org_id,employee_id,action,response_json) values (${idempotencyKey},${ws.ctx.orgId},${ws.ctx.employeeId},'order.customer_cancel',${JSON.stringify(result)}) on conflict (key) do nothing`;
+    return json({ data: result });
+  } catch (err) { const message = err instanceof Error ? err.message : "Unexpected error"; return json({ error: message, code: message === "Unauthorized" ? "UNAUTHORIZED" : "BAD_REQUEST" }, message === "Unauthorized" ? 401 : 400); }
 }
