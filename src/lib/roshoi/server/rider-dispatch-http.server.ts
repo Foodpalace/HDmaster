@@ -14,14 +14,27 @@ function serviceUserId(request: Request): string {
   return userId;
 }
 
+/**
+ * The rider app is a trusted server-to-server caller. Its public client never
+ * gets the service token. The rider identity is therefore carried as a
+ * server-added header and resolved to the HDmaster rider row; a query-string
+ * rider id is deliberately not accepted.
+ */
+async function resolveRiderId(request: Request, orgId: string) {
+  const riderUserId = request.headers.get("x-order-king-rider-user-id")?.trim();
+  if (!riderUserId) throw new Error("Rider identity is required");
+  const sql = await getSql();
+  const rows = await sql<{ id: string }>`select id from riders where org_id=${orgId} and user_id=${riderUserId} and data_mode='PRODUCTION' and status in ('ACTIVE','ONLINE','BUSY') limit 1`;
+  if (!rows[0]) throw new Error("Rider identity is not bound to an active LIVE rider");
+  return rows[0].id;
+}
+
 export async function handleRiderOffersHttp(request: Request): Promise<Response> {
   try {
     const userId = serviceUserId(request);
     const ws = await ensureWorkspace(userId);
     requirePermission(ws.ctx, "modify_orders", { orgId: ws.ctx.orgId, cityId: ws.ctx.cityId });
-    const url = new URL(request.url);
-    const riderId = url.searchParams.get("riderId")?.trim();
-    if (!riderId) return json({ error: "riderId is required" }, 400);
+    const riderId = await resolveRiderId(request, ws.ctx.orgId);
     const sql = await getSql();
 
     if (request.method === "GET") {
@@ -68,7 +81,7 @@ export async function handleRiderOffersHttp(request: Request): Promise<Response>
     const orderId = accepted[0].order_id;
     await sql`update riders set active_order_id=${orderId} where id=${riderId} and org_id=${ws.ctx.orgId} and data_mode='PRODUCTION' and online=1 and active_order_id is null`;
     await sql`insert into order_events (id,org_id,order_id,actor_employee_id,from_status,to_status,action,note) values (${nid("ev")},${ws.ctx.orgId},${orderId},${ws.ctx.employeeId},'READY','RIDER_ASSIGNED','rider.offer_accepted',${body.reason ?? null})`;
-    const result = { offerId: body.offerId, orderId, decision: "ACCEPT" as const, status: "ACCEPTED" };
+    const result = { offerId: body.offerId, orderId, riderId, decision: "ACCEPT" as const, status: "ACCEPTED" };
     await sql`insert into idempotency_keys (key,org_id,employee_id,action,response_json) values (${idempotencyKey},${ws.ctx.orgId},${ws.ctx.employeeId},'rider.offer_accept',${JSON.stringify(result)}) on conflict (key) do nothing`;
     return json({ data: result });
   } catch (err) {
