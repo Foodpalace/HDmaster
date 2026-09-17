@@ -22,14 +22,12 @@ const MODEL = "grok-4.6";
 const MAX_ROUNDS = 8;
 const MAX_TOOL_OUTPUT = 12_000;
 
-// These are backed by existing HDmaster query functions. Other registry tools remain
-// visible as governed capabilities but are not falsely advertised as executable here.
+// Only handlers whose current HDmaster query semantics are verified are executable.
+// The broader registry remains the policy contract and is expanded incrementally.
 const IMPLEMENTED_READS = new Set([
   "get_order", "search_orders", "list_recent_orders", "list_delayed_orders",
-  "get_order_timeline", "explain_order", "get_restaurant", "restaurant_health",
-  "restaurant_orders", "get_rider", "rider_health", "rider_active_orders",
-  "get_customer", "customer_orders", "get_support_tickets", "get_risk_signals",
-  "get_delivery_metrics", "get_dashboard", "get_ceo_brief",
+  "get_restaurant", "get_rider", "get_customer", "get_support_tickets",
+  "get_risk_signals", "get_delivery_metrics", "get_dashboard", "get_ceo_brief",
 ]);
 
 function parameters(spec: MasterAiToolSpec) {
@@ -79,16 +77,9 @@ async function executeRead(ws: Workspace, name: string, args: Record<string, unk
     case "list_recent_orders": return q.listOrders(ws.ctx, { limit });
     case "list_delayed_orders":
     case "get_delivery_metrics": return q.listOrders(ws.ctx, { delayed: true, limit });
-    case "get_order_timeline":
-    case "explain_order": if (!id) throw new Error(`${name} requires id`); return q.getOrder(ws.ctx, id);
     case "get_restaurant": return id ? q.getRestaurant(ws.ctx, id) : q.listRestaurants(ws.ctx, search);
-    case "restaurant_health":
-    case "restaurant_orders": return q.listRestaurants(ws.ctx, search);
     case "get_rider": return id ? q.getRider(ws.ctx, id) : q.listRiders(ws.ctx, search);
-    case "rider_health":
-    case "rider_active_orders": return q.listRiders(ws.ctx, search);
     case "get_customer": return id ? q.getCustomer(ws.ctx, id) : q.listCustomers(ws.ctx, search);
-    case "customer_orders": return q.listCustomers(ws.ctx, search);
     case "get_support_tickets": return q.listTickets(ws.ctx);
     case "get_risk_signals": return q.listRisk(ws.ctx);
     case "get_dashboard": return q.dashboardPayload(ws);
@@ -132,7 +123,7 @@ export async function runMasterAi(ws: Workspace, input: Input): Promise<MasterAi
       const name = typeof call.name === "string" ? call.name : "";
       const callId = typeof call.call_id === "string" ? call.call_id : "";
       let args: Record<string, unknown> = {};
-      try { args = JSON.parse(typeof call.arguments === "string" ? call.arguments : "{}") as Record<string, unknown>; } catch { /* return validation error below */ }
+      try { args = JSON.parse(typeof call.arguments === "string" ? call.arguments : "{}") as Record<string, unknown>; } catch { /* invalid arguments are handled as an empty argument set */ }
       const spec = MASTER_AI_TOOL_REGISTRY[name];
       if (!spec) {
         toolCalls.push({ name, status: "unavailable" });
