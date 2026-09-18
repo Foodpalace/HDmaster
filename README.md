@@ -34,11 +34,11 @@ This is the central brain of the Order King multi-vendor food delivery platform.
 Active development. Core schema and domain logic are established.
 Focus: stability, correctness, and clean integration with the three frontend apps.
 
-## Related Repos
+## Related Apps
 
-- `roshi-customers` → Customer ordering app
-- `Roshoi-parners` → Restaurant / Partner portal
-- `roshoi-riders` → Rider app
+- Customer ordering app
+- Restaurant / Partner portal
+- Rider app
 
 ---
 
